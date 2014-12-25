@@ -92,7 +92,12 @@ instance (Reify a) => Reify (QList a) where
     reify _ = ListT (reify (undefined :: a))
 
 instance (Reify a, Reify b) => Reify (a -> b) where
-  reify _ = ArrowT (reify (undefined :: a)) (reify (undefined :: b))
+    reify _ = ArrowT (reify (undefined :: a)) (reify (undefined :: b))
+
+instance Reify a => Reify (NM Q QList a) where
+    -- reify _ = ListT (reify (undefined :: a))
+    reify _ = reify (undefined :: a)
+
 
 -- Utility functions
 
@@ -121,19 +126,24 @@ class Reify (Rep a) => Q a where
 instance Q QInt where
     type Rep QInt = QInt
 
+    wrap e = QInt e
+    unwrap (QInt e) = e
+
 instance Q QBool where
     type Rep QBool = QBool
+
+    wrap e = QBool e
+    unwrap (QBool e) = e
 
 instance Q a => Q (QList a) where
     type Rep (QList a) = QList (Rep a)
     wrap e             = QList e
     unwrap (QList e)   = e
 
-instance Reify a => Reify (NM Q QList a) where
-
 instance (Q a, Q (Rep a)) => Q (NM Q QList a) where
     type (Rep (NM Q QList a)) = QList (Rep a)
     wrap   = liftList . wrap
+    unwrap = unwrap . lowerList
 
 {-
 instance (Reify a) => Reify (NM Q QList a) where
