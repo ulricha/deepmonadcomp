@@ -94,9 +94,11 @@ instance (Reify a) => Reify (QList a) where
 instance (Reify a, Reify b) => Reify (a -> b) where
     reify _ = ArrowT (reify (undefined :: a)) (reify (undefined :: b))
 
+{-
 instance Reify a => Reify (NM Q QList a) where
     -- reify _ = ListT (reify (undefined :: a))
     reify _ = reify (undefined :: a)
+-}
 
 
 -- Utility functions
