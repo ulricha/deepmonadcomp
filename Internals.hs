@@ -1,28 +1,32 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE TypeFamilies     #-}
 {-# LANGUAGE TemplateHaskell  #-}
 
 import           Control.Applicative
 import           Control.Monad
--- import           Control.Monad.ConstrainedNormal
+import           Control.Monad.ConstrainedNormal
 
 import           Data.Text                        (Text)
 import           Text.PrettyPrint.ANSI.Leijen
+import Prelude hiding (concatMap)
 
 data Fun :: * -> * -> * where
     And       :: Fun (QList QBool) QBool
     Sng       :: Fun a (QList a)
 
 data Fun2 :: * -> * -> * -> * where
-    Append    :: Fun2 (QIList a) (QIList a) (QIList a)
+    Append    :: Fun2 (QList a) (QList a) (QList a)
     ConcatMap :: Fun2 (a -> QList b) (QList a) (QList b)
 
 data Exp a where
   BoolE       :: Bool    -> Exp Bool
   IntegerE    :: Integer -> Exp Integer
+  ListE       :: [Exp a] -> Exp (QList a)
   AppE        :: (Reify a, Reify b)  => Fun a b -> Exp a -> Exp b
   AppE2       :: (Reify a, Reify b, Reify c) => Fun2 a b c -> Exp a -> Exp b -> Exp c
   LamE        :: (Reify a, Reify b)  => (Exp a -> Exp b) -> Exp (a -> b)
@@ -33,25 +37,18 @@ data Type :: * -> * where
   IntegerT  :: Type QInt
   ListT     :: (Reify a)          => Type a -> Type (QList a)
   ArrowT    :: (Reify a,Reify b)  => Type a -> Type b -> Type (a -> b)
-  PairT     :: (Reify a, Reify b) => Type a -> Type b -> Type (QPair a b)
 
 instance Pretty (Type a) where
     pretty BoolT          = text "Bool"
     pretty IntegerT       = text "Integer"
     pretty (ListT t)      = brackets $ pretty t
     pretty (ArrowT t1 t2) = parens $ pretty t1 <+> text "->" <+> pretty t2
-    pretty (PairT t1 t2)  = tupled [pretty t1, pretty t2]
 
 --------------------------------------------------------------------------------
 -- Classes
 
 class Reify a where
   reify :: a -> Type a
-
-class (Reify (Rep a)) => QA a where
-  type Rep a
-  toExp :: a -> Exp (Rep a)
-  frExp :: Exp (Rep a) -> a
 
 class BasicType a where
 
@@ -96,9 +93,6 @@ instance Reify QInt where
 instance (Reify a) => Reify (QList a) where
     reify _ = ListT (reify (undefined :: a))
 
-instance (Reify a, Reify b) => Reify (QPair a b) where
-  reify _ = PairT (reify (undefined :: a)) (reify (undefined :: b))
-
 instance (Reify a, Reify b) => Reify (a -> b) where
   reify _ = ArrowT (reify (undefined :: a)) (reify (undefined :: b))
 
@@ -117,109 +111,66 @@ instance (Reify a, Reify b) => Reify (a -> b) where
 -- Exp *Int: A query AST that returns an int
 -- Q*: type-specific wrappers around query ASTs
 
-newtype QInt      = QInt (Exp QInt)
-newtype QBool     = QBool (Exp QBool)
-newtype QPair a b = QPair (Exp (QPair a b))
-newtype QIList a  = QIList (Exp (QList a))
+newtype QInt      = QInt (Exp (Rep QInt))
+newtype QBool     = QBool (Exp (Rep QBool))
+newtype QList a   = QList (Exp (Rep (QList a)))
 
-data QList :: * -> * where
-    Return :: a -> QList a
-    Bind   :: (Query a, Query b, Reify b, Reify a) => QIList a -> (a -> QList b) -> QList b
+class Reify (Rep a) => Q a where
+    type Rep a
+    wrap   :: Exp (Rep a) -> a
+    unwrap :: a -> Exp (Rep a)
 
-instance Monad QList where
-    return :: a -> QList a
-    return = Return
+instance Q QInt where
+    type Rep QInt = QInt
+
+instance Q QBool where
+    type Rep QBool = QBool
+
+instance Q a => Q (QList a) where
+    type Rep (QList a) = QList (Rep a)
+    wrap e             = QList e
+    unwrap (QList e)   = e
+
+instance Reify a => Reify (NM Q QList a) where
+
+instance (Q a, Q (Rep a)) => Q (NM Q QList a) where
+    type (Rep (NM Q QList a)) = QList (Rep a)
+    wrap = liftList . wrap
+
+{-
+instance (Reify a) => Reify (NM Q QList a) where
+    reify _ = ListT (reify (undefined :: a))
+-}
     
-    (>>=) :: QList a -> (a -> QList b) -> QList b
-    (Return a)  >>= k = k a
-    (Bind vx h) >>= k = Bind vx (\x -> h x >>= k)
+liftList :: Q a => QList a -> NM Q QList a
+liftList = liftNM 
 
-lowerQList :: (Reify a, Query a) => QList a -> QIList a
-lowerQList (Return a)  = QIList (AppE Sng (unwrapQ a))
-lowerQList (Bind (QIList vx) k) = QIList (AppE2 ConcatMap undefined vx) 
--- a -> QList b 
--- Exp a -> Exp (QList b)
+lowerList :: (Q a, Q (Rep a)) => NM Q QList a -> QList a
+lowerList = lowerNM sng bind
 
+concatMap :: (Q a, Q b, Q (Rep b), Q (Rep a)) => (a -> QList b) -> QList a -> QList b
+concatMap f as = wrap $ AppE2 ConcatMap (LamE $ toLam f) (unwrap as)
 
+bind :: (Q a, Q b, Q (Rep a), Q (Rep b)) => QList a -> (a -> QList b) -> QList b
+bind = flip concatMap
 
+sng :: (Q a, Q (Rep a)) => a -> QList a
+sng x = wrap $ AppE Sng (unwrap x)
 
-instance (Reify (QList a), Reify a, Query a) => Query (QList a) where
-    wrapQ :: Exp (QList a) -> QList a
-    wrapQ e = Bind (QIList e) Return
-
-    unwrapQ :: QList a -> Exp (QList a)
-    unwrapQ = undefined
-
-{-
-data QList a where
-    Prim   :: QIList a -> QList a
-    Bind   :: QList a -> (a -> QList b) -> QList b
-    Return :: a -> QList a
--}
-
-class Reify a => Query a where
-    wrapQ   :: Exp a -> a
-    unwrapQ :: a -> Exp a
-
-instance Query QInt where
-    wrapQ e          = QInt e
-    unwrapQ (QInt e) = e
-
-instance Query QBool where
-    wrapQ e = QBool e
-    unwrapQ (QBool e) = e
-
-{-
-instance Query a => Query (QList a) where
-    -- unwrapQ :: QList a -> Exp (QList a)
-    unwrapQ (Bind as f)        = undefined ConcatMap (PairE undefined (unwrapQ as))
-    unwrapQ (Return a)         = AppE Sng (unwrapQ a)
-    unwrapQ (Prim (QIList as)) = as
-
-    -- wrapQ :: Exp (QList a) -> QList a
-    wrapQ = undefined  -- Either add a primitive combinator or use >>=
-                       -- and return (right identity)
-
-instance Functor QList where
-    fmap = liftM
-
-instance Applicative QList where
-    pure  = return
-    (<*>) = ap
-
-instance Monad QList where
-    (>>=)  = Bind
-    return = Return
--}
-
-{-
-instance Reify a => Query (QList a) where
-    wrapQ e = QList e
-    unwrapQ (QList e) = e
--}
-
-instance (Reify a, Reify b) => Query (QPair a b) where
-    wrapQ e = QPair e
-    unwrapQ (QPair e) = e
+toLam :: (Q a, Q b) => (a -> b) -> Exp (Rep a) -> Exp (Rep b)
+toLam f = unwrap . f . wrap
 
 {-
 and :: QList QBool -> QBool
-and bs = wrapQ $ AppE And (unwrapQ bs)
+and bs = wrap $ AppE And (unwrap bs)
 
 append :: Query a => QList a -> QList a -> QList a
-append as bs = wrapQ $ AppE Append (PairE (unwrapQ as) (unwrapQ bs))
+append as bs = wrap $ AppE Append (PairE (unwrap as) (unwrap bs))
 
-toLam :: (Query a, Query b) => (a -> b) -> Exp a -> Exp b
-toLam f = unwrapQ . f . wrapQ
-
-concatMapQ :: (Query a, Query b) => (a -> QList b) -> QList a -> QList b
-concatMapQ f as = wrapQ $ AppE ConcatMap (PairE (LamE $ toLam f) (unwrapQ as))
 
 mapQ :: (Query a, Query b) => (a -> b) -> QList a -> QList b
 mapQ = undefined
 
-sng :: Query a => a -> QList a
-sng x = wrapQ $ AppE Sng (unwrapQ x)
 -}
 
 {-
