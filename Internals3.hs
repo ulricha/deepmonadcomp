@@ -22,8 +22,8 @@ import           Text.PrettyPrint.ANSI.Leijen
 -- Typed query AST
 
 data Exp :: * -> * where
-  BoolE       :: Bool    -> Exp Bool
-  IntegerE    :: Integer -> Exp Integer
+  BoolE       :: Bool    -> Exp QBool
+  IntegerE    :: Integer -> Exp QInt
   ListE       :: [Exp a] -> Exp (QList a)
 
   AndE        :: Exp (QList QBool) -> Exp QBool
@@ -175,14 +175,23 @@ concatMap f as = liftList $ concatMapRep f' (lowerList as)
 --------------------------------------------------------------------------------
 -- Literal values in queries
 
-{-
 class QLit a where
     type Lit a
     litQ :: a -> Lit a
 
 instance QLit Bool where
     type Lit Bool = Rep QBool
+    litQ :: Bool -> Lit Bool
     litQ = QBool . BoolE 
--}
+
+instance QLit Integer where
+    type Lit Integer = Rep QInt
+    litQ :: Integer -> Lit Integer
+    litQ = QInt . IntegerE
+
+instance QLit a => QLit [a] where
+    type Lit [a] = QList (Lit a)
+    litQ :: [a] -> Lit [a]
+    litQ xs = wrap $ ListE $ map litQ xs
     
 -- [a] -> QListM (
