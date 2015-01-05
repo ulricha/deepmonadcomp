@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE InstanceSigs         #-}
-{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -102,18 +101,18 @@ newtype QList a   = QList (Exp (Rep (QList a)))
 instance Q QInt where
     type Rep QInt = QInt
 
-    wrap e = QInt e
+    wrap = QInt
     unwrap (QInt e) = e
 
 instance Q QBool where
     type Rep QBool = QBool
 
-    wrap e = QBool e
+    wrap = QBool
     unwrap (QBool e) = e
 
 instance Q a => Q (QList a) where
     type Rep (QList a) = QList (Rep a)
-    wrap e             = QList e
+    wrap = QList
     unwrap (QList e)   = e
 
 instance (Q a, Q (Rep a)) => Q (NM Q QList a) where
@@ -175,6 +174,24 @@ concatMap f as = liftList $ concatMapRep f' (lowerList as)
 --------------------------------------------------------------------------------
 -- Literal values in queries
 
+{-
+
+Problem: need a way to bring literal values into queries:
+
+toQ :: [a] -> QListM (Foo a)
+
+=> need a mapping between regular haskell types and values and Q types
+
+[a]  --> QListM a
+Int  --> QInt
+Bool --> QBool
+
+=> Type class
+
+-}
+
+{-
+
 class QLit a where
     type Lit a
     litQ :: a -> Lit a
@@ -193,5 +210,7 @@ instance QLit a => QLit [a] where
     type Lit [a] = QList (Lit a)
     litQ :: [a] -> Lit [a]
     litQ xs = wrap $ ListE $ map litQ xs
+
+-}
     
 -- [a] -> QListM (
