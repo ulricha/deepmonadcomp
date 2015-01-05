@@ -29,8 +29,8 @@ data Exp :: * -> * where
     SngE        :: Exp a -> Exp (QList a)
     AppendE     :: Exp (QList a) -> Exp (QList a) -> Exp (QList a)
     ConcatMapE  :: Exp (a -> QList b) -> Exp (QList a) -> Exp (QList b)
-    LamE        :: (Reify a, Reify b)  => (Exp a -> Exp b) -> Exp (a -> b)
-    VarE        :: (Reify a)           => Integer -> Exp a
+    LamE        :: (Exp a -> Exp b) -> Exp (a -> b)
+    VarE        :: Integer -> Exp a
     FstE        :: Exp (QTup a b) -> Exp a
     SndE        :: Exp (QTup a b) -> Exp b
     TableE      :: String -> Exp (QList (QTup a b))
@@ -38,62 +38,17 @@ data Exp :: * -> * where
 data Type :: * -> * where
     BoolT     :: Type QBool
     IntegerT  :: Type QInt
-    ListT     :: (Reify a)          => Type a -> Type (QList a)
+    ListT     :: Type a -> Type (QList a)
     TupT      :: Type a -> Type b -> Type (QTup a b)
-    ArrowT    :: (Reify a, Reify b)  => Type a -> Type b -> Type (a -> b)
-
--- | A combination of column names that form a candidate key
-newtype Key = Key [String] deriving (Eq, Ord, Show)
-
--- | Is the table guaranteed to be not empty?
-data Emptiness = NonEmpty
-               | PossiblyEmpty
-               deriving (Eq, Ord, Show)
-
--- | Catalog information hints that users may give to DSH
-data TableHints = TableHints
-    { keysHint     :: [Key]
-    , nonEmptyHint :: Emptiness
-    } deriving (Eq, Ord, Show)
-
-data Table = TableDB String TableHints
+    ArrowT    :: Type a -> Type b -> Type (a -> b)
 
 --------------------------------------------------------------------------------
 -- Classes
 
-class Reify a where
-  reify :: a -> Type a
-
-class BasicType a where
-
-class TA a where
-
-class View a where
-  type ToView a
-  view :: a -> ToView a
-
-class Reify (Rep a) => Q a where
+class Q a where
     type Rep a
     wrap   :: Exp (Rep a) -> a
     unwrap :: a -> Exp (Rep a)
-
---------------------------------------------------------------------------------
--- Reify instances
-
-instance Reify QBool where
-  reify _ = BoolT
-
-instance Reify QInt where
-  reify _ = IntegerT
-
-instance (Reify a) => Reify (QList a) where
-    reify _ = ListT (reify (undefined :: a))
-
-instance (Reify a, Reify b) => Reify (a -> b) where
-    reify _ = ArrowT (reify (undefined :: a)) (reify (undefined :: b))
-
-instance (Reify a, Reify b) => Reify (QTup a b) where
-    reify _ = TupT (reify (undefined :: a)) (reify (undefined :: b))
 
 --------------------------------------------------------------------------------
 -- Type-specific AST wrappers
