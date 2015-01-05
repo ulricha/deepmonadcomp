@@ -1,16 +1,16 @@
-{-# LANGUAGE ConstraintKinds      #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE InstanceSigs         #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE TypeFamilies      #-}
+
+-- | An attempt to use monad comprehensions in a deep embedding of
+-- NRC-like collection queries.
+module DeepMonadComp where
 
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.ConstrainedNormal
 import           Control.Monad.State
-
 
 import           Data.Text                       (Text)
 import           Text.PrettyPrint.ANSI.Leijen    hiding ((<$>))
