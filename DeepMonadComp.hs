@@ -46,7 +46,7 @@ data Type :: * -> * where
 -- Classes
 
 class Q a where
-    type Rep a
+    type Rep a :: *
     wrap   :: Exp (Rep a) -> a
     unwrap :: a -> Exp (Rep a)
 
