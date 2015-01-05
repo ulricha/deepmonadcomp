@@ -6,9 +6,6 @@
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
 
--- Try to get rid of the Fun type and inline functions directly on the
--- main ast type
-
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.ConstrainedNormal
@@ -98,6 +95,9 @@ instance (Reify a, Reify b) => Reify (a -> b) where
 instance (Reify a, Reify b) => Reify (QTup a b) where
     reify _ = TupT (reify (undefined :: a)) (reify (undefined :: b))
 
+--------------------------------------------------------------------------------
+-- Type-specific AST wrappers
+
 newtype QInt      = QInt (Exp (Rep QInt))
 newtype QBool     = QBool (Exp (Rep QBool))
 newtype QList a   = QList (Exp (Rep (QList a)))
@@ -125,8 +125,8 @@ instance Q a => Q (QList a) where
     wrap = QList
     unwrap (QList e)   = e
 
-instance (Q a, Q (Rep a)) => Q (NM Q QList a) where
-    type (Rep (NM Q QList a)) = QList (Rep a)
+instance (Q a, Q (Rep a)) => Q (NMP Q QList a) where
+    type (Rep (NMP Q QList a)) = QList (Rep a)
     wrap   = liftList . wrap
     unwrap = unwrap . lowerList
 
@@ -134,11 +134,11 @@ instance (Q a, Q (Rep a)) => Q (NM Q QList a) where
 -- Convert between actual list ASTs and the deep embedding of monadic
 -- list computations
 
-liftList :: Q a => QList a -> NM Q QList a
-liftList = liftNM
+liftList :: Q a => QList a -> NMP Q QList a
+liftList = liftNMP
 
-lowerList :: (Q a, Q (Rep a)) => NM Q QList a -> QList a
-lowerList = lowerNM sngRep bindRep
+lowerList :: (Q a, Q (Rep a)) => NMP Q QList a -> QList a
+lowerList = lowerNMP emptyRep appendRep sngRep bindRep
 
 --------------------------------------------------------------------------------
 -- List combinators on actual list ASTs
@@ -167,7 +167,7 @@ emptyRep = wrap $ ListE []
 --------------------------------------------------------------------------------
 -- User-facing list combinators on monadic lists
 
-type QListM a = NM Q QList a
+type QListM a = NMP Q QList a
 
 fst_ :: (Q a, Q b) => QTup a b -> a
 fst_ t = wrap $ FstE $ unwrap t
@@ -199,14 +199,11 @@ map_ f = concatMap_ (sng_ . f)
 table_ :: (Q a, Q b, Q (Rep a), Q (Rep b)) => String -> QListM (QTup a b)
 table_ tabName = wrap $ TableE tabName
 
-{-
-instance MonadPlus (NM Q QList) where
-    mzero = empty_
-    mplus = append_
--}
-
 as :: QListM (QTup QInt QBool)
 as = table_ "a"
+
+true_ :: QBool
+true_ = wrap $ BoolE True
 
 
 
