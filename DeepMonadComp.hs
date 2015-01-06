@@ -211,11 +211,12 @@ true_ = wrap $ BoolE True
 
 {-
 
-Problem: need a way to bring literal values into queries:
+Problem: Types like 'QListM QInt' look a bit awful. What we really
+want is the original 'Q [Int]' instead. Additionally, we need a way to
+use literal Haskell values in queries.
 
-toQ :: [a] -> QListM (Foo a)
-
-=> need a mapping between regular haskell types and values and Q types
+=> need a type function mapping between regular haskell types and
+values and Q types
 
 [a]  --> QListM a
 Int  --> QInt
@@ -223,32 +224,18 @@ Bool --> QBool
 
 => Type class
 
--}
+class Query a where
+    type Q a
+    litQ :: a -> Q a
+    fromQ :: Q a -> Maybe a
 
-{-
-
-class QLit a where
-    type Lit a
-    litQ :: a -> Lit a
-
-instance QLit Bool where
-    type Lit Bool = Rep QBool
-    litQ :: Bool -> Lit Bool
-    litQ = QBool . BoolE
-
-instance QLit Integer where
-    type Lit Integer = Rep QInt
-    litQ :: Integer -> Lit Integer
-    litQ = QInt . IntegerE
-
-instance QLit a => QLit [a] where
-    type Lit [a] = QList (Lit a)
-    litQ :: [a] -> Lit [a]
-    litQ xs = wrap $ ListE $ map litQ xs
+instance Query Bool where
+    type Q Bool = QBool
+    litQ b = wrap $ BoolE b
+    fromQ (QBool (BoolE b)) = Just b
+    fromQ _                 = Nothing
 
 -}
-
--- [a] -> QListM (
 
 --------------------------------------------------------------------------------
 -- Pretty-printing of frontend ASTs
