@@ -1,8 +1,9 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE RebindableSyntax  #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE MonadComprehensions #-}
+{-# LANGUAGE RebindableSyntax    #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 -- | An attempt to use monad comprehensions in a deep embedding of
 -- NRC-like collection queries.
@@ -298,7 +299,7 @@ as :: QListM (QTup QInt QBool)
 as = table_ "a"
 
 comp :: QListM QInt
-comp = [ fst_ a | a <- as, b <- as ] 
+comp = [ fst_ a | a <- as, b <- as ]
 
 guardComp :: QListM QInt
 guardComp = [ fst_ a | a <- as, true_ ]
