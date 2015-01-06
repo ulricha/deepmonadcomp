@@ -1,21 +1,31 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs             #-}
+{-# LANGUAGE RebindableSyntax  #-}
 {-# LANGUAGE TypeFamilies      #-}
 
 -- | An attempt to use monad comprehensions in a deep embedding of
 -- NRC-like collection queries.
 module DeepMonadComp where
 
+import           Prelude
+
 import           Control.Applicative
-import           Control.Monad
+import           Control.Monad                   hiding (guard)
 import           Control.Monad.ConstrainedNormal
-import           Control.Monad.State
+import           Control.Monad.State             hiding (guard)
 
 import           Text.PrettyPrint.ANSI.Leijen    hiding ((<$>))
 import           Text.Printf
 
 {-
+
+Without RebindableSyntax, using comprehension guards will fail. GHC
+apparently uses Control.Monad.guard to typecheck the
+comprehension. However, the type of guard
+'MonadPlus m => Bool -> m ()' is too restrictive as it demands a
+proper Bool. As we create a deep embedding, we can't provide that.
+
 λ> :set -XMonadComprehensions
 λ> pretty [ fst_ a | a <- as ]
 append (concatMap (\v0 -> append (sng (fst (v0))) ([])) (table(a))) ([])
@@ -30,6 +40,13 @@ true_ :: QBool
     In the first argument of ‘pretty’, namely
       ‘[fst_ a | a <- as, true_]’
     In the expression: pretty [fst_ a | a <- as, true_]
+
+What we can do instead is to provide our own 'guard' combinator and
+use it with RebindableSyntax. Of course, that's rather unsatisfying as
+RebindableSyntax is exactly the thing we wanted to avoid. At least,
+comprehension desugaring uses proper (>>=), return, mzero and mplus
+from Monad and MonadPlus.
+
 -}
 
 --------------------------------------------------------------------------------
@@ -51,6 +68,8 @@ data Exp :: * -> * where
     SndE        :: Exp (QTup a b) -> Exp b
     TableE      :: String -> Exp (QList (QTup a b))
 
+    GuardE      :: Exp QBool -> Exp (QList QUnit)
+
 data Type :: * -> * where
     BoolT     :: Type QBool
     IntegerT  :: Type QInt
@@ -69,10 +88,16 @@ class Q a where
 --------------------------------------------------------------------------------
 -- Type-specific AST wrappers
 
+newtype QUnit     = QUnit (Exp (Rep QUnit))
 newtype QInt      = QInt (Exp (Rep QInt))
 newtype QBool     = QBool (Exp (Rep QBool))
 newtype QList a   = QList (Exp (Rep (QList a)))
 newtype QTup a b  = QTup (Exp (Rep (QTup a b)))
+
+instance Q QUnit where
+    type Rep QUnit = QUnit
+    wrap = QUnit
+    unwrap (QUnit e) = e
 
 instance (Q a, Q b) => Q (QTup a b) where
     type Rep (QTup a b) = QTup (Rep a) (Rep b)
@@ -135,6 +160,9 @@ toLam f = unwrap . f . wrap
 emptyRep :: Q a => QList a
 emptyRep = wrap $ ListE []
 
+guardRep :: QBool -> QList QUnit
+guardRep b = wrap $ GuardE $ unwrap b
+
 --------------------------------------------------------------------------------
 -- User-facing list combinators on monadic lists
 
@@ -167,6 +195,9 @@ concatMap_ f as = liftList $ concatMapRep f' (lowerList as)
 map_ :: (Q a, Q (Rep a), Q b, Q (Rep b)) => (a -> b) -> QListM a -> QListM b
 map_ f = concatMap_ (sng_ . f)
 
+guard :: QBool -> QListM QUnit
+guard = liftList . guardRep
+
 table_ :: (Q a, Q b, Q (Rep a), Q (Rep b)) => String -> QListM (QTup a b)
 table_ tabName = wrap $ TableE tabName
 
@@ -176,6 +207,9 @@ as = table_ "a"
 true_ :: QBool
 true_ = wrap $ BoolE True
 
+
+guardComp :: QListM QInt
+guardComp = [ fst_ a | a <- as, true_ ]
 
 
 --------------------------------------------------------------------------------
@@ -249,6 +283,7 @@ pp (AndE bs) = ppApp1 "and" bs
 pp (FstE bs) = ppApp1 "fst" bs
 pp (SndE bs) = ppApp1 "snd" bs
 pp (SngE a) = ppApp1 "sng" a
+pp (GuardE b) = ppApp1 "guard" b
 pp (AppendE as1 as2) = ppApp2 "append" as1 as2
 pp (ConcatMapE f as) = ppApp2 "concatMap" f as
 pp (VarE i) = return $ text $ "v" ++ show i
