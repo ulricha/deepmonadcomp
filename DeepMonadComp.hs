@@ -12,9 +12,25 @@ import           Control.Monad
 import           Control.Monad.ConstrainedNormal
 import           Control.Monad.State
 
-import           Data.Text                       (Text)
 import           Text.PrettyPrint.ANSI.Leijen    hiding ((<$>))
 import           Text.Printf
+
+{-
+λ> :set -XMonadComprehensions
+λ> pretty [ fst_ a | a <- as ]
+append (concatMap (\v0 -> append (sng (fst (v0))) ([])) (table(a))) ([])
+λ> :t true_
+true_ :: QBool
+λ> pretty [ fst_ a | a <- as, true_ ]
+<interactive>:12:28:
+    Couldn't match type ‘Bool’ with ‘QBool’
+    Expected type: QBool -> NMP Q QList ()
+      Actual type: Bool -> NMP Q QList ()
+    In a stmt of a monad comprehension: true_
+    In the first argument of ‘pretty’, namely
+      ‘[fst_ a | a <- as, true_]’
+    In the expression: pretty [fst_ a | a <- as, true_]
+-}
 
 --------------------------------------------------------------------------------
 -- Typed query AST
