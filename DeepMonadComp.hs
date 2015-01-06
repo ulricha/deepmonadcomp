@@ -201,15 +201,9 @@ guard = liftList . guardRep
 table_ :: (Q a, Q b, Q (Rep a), Q (Rep b)) => String -> QListM (QTup a b)
 table_ tabName = wrap $ TableE tabName
 
-as :: QListM (QTup QInt QBool)
-as = table_ "a"
-
 true_ :: QBool
 true_ = wrap $ BoolE True
 
-
-guardComp :: QListM QInt
-guardComp = [ fst_ a | a <- as, true_ ]
 
 
 --------------------------------------------------------------------------------
@@ -309,3 +303,15 @@ instance Pretty (QList a) where
 
 instance (Q a, Q (Rep a)) => Pretty (QListM a) where
     pretty l = pretty $ lowerList l
+
+--------------------------------------------------------------------------------
+-- Comprehension examples
+
+as :: QListM (QTup QInt QBool)
+as = table_ "a"
+
+comp :: QListM QInt
+comp = [ fst_ a | a <- as, b <- as ] 
+
+guardComp :: QListM QInt
+guardComp = [ fst_ a | a <- as, true_ ]
