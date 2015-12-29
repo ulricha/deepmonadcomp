@@ -11,12 +11,12 @@ module DeepMonadComp where
 
 import           Prelude
 
+import           Data.List
 import           Control.Applicative
 import           Control.Monad                   hiding (guard)
 import           Control.Monad.ConstrainedNormal
-import           Control.Monad.State             hiding (guard)
+import           Control.Monad.Trans.State       hiding (guard)
 
-import           Text.PrettyPrint.ANSI.Leijen    hiding ((<$>))
 import           Text.Printf
 
 {-
@@ -241,6 +241,38 @@ instance Query Bool where
     fromQ _                 = Nothing
 
 -}
+
+--------------------------------------------------------------------------------
+-- A simple pretty printer
+
+type Doc = String
+
+class Pretty a where
+    pretty :: a -> Doc
+
+(<+>) :: Doc -> Doc -> Doc
+d1 <+> d2 = d1 ++ " " ++ d2
+
+text :: String -> Doc
+text = id
+
+integer :: (Show a, Integral a) => a -> String
+integer = show
+
+parens :: Doc -> Doc
+parens d = "(" ++ d ++ ")"
+
+brackets :: Doc -> Doc
+brackets d = "[" ++ d ++ "]"
+
+bool :: Bool -> Doc
+bool = show
+
+list :: [Doc] -> Doc
+list ds = brackets $ intercalate "," ds
+
+tupled :: [Doc] -> Doc
+tupled ds = parens $ intercalate "," ds
 
 --------------------------------------------------------------------------------
 -- Pretty-printing of frontend ASTs
