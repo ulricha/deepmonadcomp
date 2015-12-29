@@ -67,6 +67,7 @@ data Exp :: * -> * where
     VarE        :: Integer -> Exp a
     FstE        :: Exp (QTup a b) -> Exp a
     SndE        :: Exp (QTup a b) -> Exp b
+    GtE         :: Exp a -> Exp a -> Exp QBool
     TableE      :: String -> Exp (QList (QTup a b))
 
     GuardE      :: Exp QBool -> Exp (QList QUnit)
@@ -169,6 +170,9 @@ guardRep b = wrap $ GuardE $ unwrap b
 
 type QListM a = NMP QA QList a
 
+(>.) :: QA a => a -> a -> QBool
+(>.) a b = wrap $ GtE (unwrap a) (unwrap b)
+
 fst_ :: (QA a, QA b) => QTup a b -> a
 fst_ t = wrap $ FstE $ unwrap t
 
@@ -256,7 +260,14 @@ ppApp2 n e1 e2 = do
     pe2 <- pp e2
     return $ text n <+> parens pe1 <+> parens pe2
 
+ppInfix :: String -> Exp a -> Exp b -> State Integer Doc
+ppInfix n e1 e2 = do
+    pe1 <- pp e1
+    pe2 <- pp e2
+    return $ parens pe1 <+> text n <+> parens pe2
+
 pp :: Exp a -> State Integer Doc
+pp (GtE a b ) = ppInfix ">" a b
 pp (BoolE b) = return $ bool b
 pp (IntegerE i) = return $ integer i
 pp (ListE l) = list <$> mapM pp l
@@ -298,8 +309,14 @@ instance (QA a, QA (Rep a)) => Pretty (QListM a) where
 as :: QListM (QTup QInt QBool)
 as = table_ "a"
 
+bs :: QListM (QTup QInt QInt)
+bs = table_ "b"
+
 comp :: QListM QInt
 comp = [ fst_ a | a <- as, b <- as ]
 
 guardComp :: QListM QInt
 guardComp = [ fst_ a | a <- as, true_ ]
+
+guardComp2 :: QListM QInt
+guardComp2 = [ fst_ a | a <- as, b <- bs, fst_ a >. snd_ b ]
