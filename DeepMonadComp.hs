@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE RebindableSyntax    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
 -- | An attempt to use monad comprehensions in a deep embedding of
@@ -47,6 +46,11 @@ use it with RebindableSyntax. Of course, that's rather unsatisfying as
 RebindableSyntax is exactly the thing we wanted to avoid. At least,
 comprehension desugaring uses proper (>>=), return, mzero and mplus
 from Monad and MonadPlus.
+
+What we also can do is modifying the desugaring of monad comprehensions. Instead
+of regular guard, we use an overloaded aguard (class Guardable) that can be
+defined as the deep embedding version of guard. Note that this relies on a GHC
+patch.
 
 -}
 
@@ -200,16 +204,11 @@ concatMap_ f as = liftList $ concatMapRep f' (lowerList as)
 map_ :: (QA a, QA (Rep a), QA b, QA (Rep b)) => (a -> b) -> QListM a -> QListM b
 map_ f = concatMap_ (sng_ . f)
 
-guard :: QBool -> QListM QUnit
-guard = liftList . guardRep
-
 table_ :: (QA a, QA b, QA (Rep a), QA (Rep b)) => String -> QListM (QTup a b)
 table_ tabName = wrap $ TableE tabName
 
 true_ :: QBool
 true_ = wrap $ BoolE True
-
-
 
 --------------------------------------------------------------------------------
 -- Literal values in queries
@@ -334,6 +333,18 @@ instance Pretty (QList a) where
 
 instance (QA a, QA (Rep a)) => Pretty (QListM a) where
     pretty l = pretty $ lowerList l
+
+--------------------------------------------------------------------------------
+
+-- class Alternative f => Guardable f where
+--     type GuardBool f
+--     type GuardUnit f
+--     aguard :: GuardBool f -> f (GuardUnit f)
+
+instance Guardable QListM where
+    type GuardBool QListM = QBool
+    type GuardUnit QListM = QUnit
+    aguard = guard_
 
 --------------------------------------------------------------------------------
 -- Comprehension examples
