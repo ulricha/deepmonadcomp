@@ -1,0 +1,75 @@
+From bcbdd73d4c7b269b6be9e533f65a6616532db37a Mon Sep 17 00:00:00 2001
+From: Alexander Ulrich <alex@etc-network.de>
+Date: Tue, 12 Jan 2016 10:36:33 +0100
+Subject: [PATCH 2/2] Desugar monad comprehension guard into aguard.
+
+Monad comprehension guards were desugared into Control.Monad.guard which uses
+concrete types Bool and () for the predicate and result type. This makes it
+impossible to use monad comprehensions in a deep embedding without
+RebindableSyntax.
+
+This patch changes the desugaring of guards to use the overloaded aguard instead.
+Monads that can be used in monad comprehensions must provide not only an
+Alternative instance as before but also a Guardable instance. The Guardable
+instance defines the types to be used for the predicate and the result. For all
+existing Alternative instances, the Guardable instance simply refers to the regular
+Control.Monad.guard and to Bool and ().
+
+Deep embeddings however can provide their own guard implementation, combined with
+embedding-specific associated types.
+---
+ compiler/prelude/PrelNames.hs | 10 +++++-----
+ compiler/rename/RnExpr.hs     |  2 +-
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/compiler/prelude/PrelNames.hs b/compiler/prelude/PrelNames.hs
+index 030f10a..30d510c 100644
+--- a/compiler/prelude/PrelNames.hs
++++ b/compiler/prelude/PrelNames.hs
+@@ -353,7 +353,7 @@ basicKnownKeyNames
+         , datatypeClassName, constructorClassName, selectorClassName
+ 
+         -- Monad comprehensions
+-        , guardMName
++        , aguardMName
+         , liftMName
+         , mzipName
+ 
+@@ -1321,8 +1321,8 @@ choiceAName        = varQual aRROW (fsLit "|||")       choiceAIdKey
+ loopAName          = varQual aRROW (fsLit "loop")      loopAIdKey
+ 
+ -- Monad comprehensions
+-guardMName, liftMName, mzipName :: Name
+-guardMName         = varQual mONAD (fsLit "guard")    guardMIdKey
++aguardMName, liftMName, mzipName :: Name
++aguardMName        = varQual mONAD (fsLit "aguard")   aguardMIdKey
+ liftMName          = varQual mONAD (fsLit "liftM")    liftMIdKey
+ mzipName           = varQual mONAD_ZIP (fsLit "mzip") mzipIdKey
+ 
+@@ -2111,8 +2111,8 @@ toIntegerClassOpKey  = mkPreludeMiscIdUnique 192
+ toRationalClassOpKey = mkPreludeMiscIdUnique 193
+ 
+ -- Monad comprehensions
+-guardMIdKey, liftMIdKey, mzipIdKey :: Unique
+-guardMIdKey     = mkPreludeMiscIdUnique 194
++aguardMIdKey, liftMIdKey, mzipIdKey :: Unique
++aguardMIdKey    = mkPreludeMiscIdUnique 777
+ liftMIdKey      = mkPreludeMiscIdUnique 195
+ mzipIdKey       = mkPreludeMiscIdUnique 196
+ 
+diff --git a/compiler/rename/RnExpr.hs b/compiler/rename/RnExpr.hs
+index 03f4b62..b8d4fd7 100644
+--- a/compiler/rename/RnExpr.hs
++++ b/compiler/rename/RnExpr.hs
+@@ -766,7 +766,7 @@ rnStmt ctxt rnBody (L loc (BodyStmt body _ _ _)) thing_inside
+   = do  { (body', fv_expr) <- rnBody body
+         ; (then_op, fvs1)  <- lookupStmtName ctxt thenMName
+         ; (guard_op, fvs2) <- if isListCompExpr ctxt
+-                              then lookupStmtName ctxt guardMName
++                              then lookupStmtName ctxt aguardMName
+                               else return (noSyntaxExpr, emptyFVs)
+                               -- Only list/parr/monad comprehensions use 'guard'
+                               -- Also for sub-stmts of same eg [ e | x<-xs, gd | blah ]
+-- 
+2.6.4
+
