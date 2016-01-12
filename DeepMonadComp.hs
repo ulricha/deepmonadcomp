@@ -215,9 +215,6 @@ concatMap_ f as = liftList $ concatMapRep f' (lowerList as)
 map_ :: (QA a, QA (Rep a), QA b, QA (Rep b)) => (a -> b) -> QListM a -> QListM b
 map_ f = concatMap_ (sng_ . f)
 
-guard :: QBool -> QListM QUnit
-guard = liftList . guardRep
-
 guard_ :: QBool -> QListM QUnit
 guard_ = liftList . guardRep
 
@@ -226,8 +223,6 @@ table_ tabName = wrap $ TableE tabName
 
 true_ :: QBool
 true_ = wrap $ BoolE True
-
-
 
 --------------------------------------------------------------------------------
 -- Literal values in queries
@@ -355,9 +350,14 @@ instance (QA a, QA (Rep a)) => Pretty (QListM a) where
 
 --------------------------------------------------------------------------------
 
-instance Guardable (NMP QA QList) where
-    type GuardBool (NMP QA QList) = QBool
-    type GuardUnit (NMP QA QList) = QUnit
+-- class Alternative f => Guardable f where
+--     type GuardBool f
+--     type GuardUnit f
+--     aguard :: GuardBool f -> f (GuardUnit f)
+
+instance Guardable QListM where
+    type GuardBool QListM = QBool
+    type GuardUnit QListM = QUnit
     aguard = guard_
 
 --------------------------------------------------------------------------------
