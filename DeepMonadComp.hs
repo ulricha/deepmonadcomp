@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE RebindableSyntax    #-}
 {-# LANGUAGE TypeFamilies        #-}
 
 -- | An attempt to use monad comprehensions in a deep embedding of
@@ -21,11 +20,11 @@ import           Text.Printf
 
 {-
 
-Without RebindableSyntax, using comprehension guards will fail. GHC
-apparently uses Control.Monad.guard to typecheck the
-comprehension. However, the type of guard
-'MonadPlus m => Bool -> m ()' is too restrictive as it demands a
-proper Bool. As we create a deep embedding, we can't provide that.
+In the currently implemented version of MonadComprehensions, using comprehension
+guards will fail without RebindableSyntax. GHC apparently uses
+Control.Monad.guard to typecheck the comprehension. However, the type of guard
+'MonadPlus m => Bool -> m ()' is too restrictive as it demands a proper Bool. As
+we create a deep embedding, we can't provide that.
 
 λ> :set -XMonadComprehensions
 λ> pretty [ fst_ a | a <- as ]
@@ -47,6 +46,22 @@ use it with RebindableSyntax. Of course, that's rather unsatisfying as
 RebindableSyntax is exactly the thing we wanted to avoid. At least,
 comprehension desugaring uses proper (>>=), return, mzero and mplus
 from Monad and MonadPlus.
+
+Alternatively, we can change the desugaring of monad comprehensions. This
+version uses a overloaded guard combinator to desugar into a guard specific to
+the embedding. Types for predicate and result are specified with an associated
+type to avoid ambiguity.
+
+Instead of
+
+guard :: Alternative f => Bool -> f ()
+
+we use
+
+class Alternative f => Guardable f where
+  type GuardBool
+  type GuardUnit
+  aguard :: GuardBool f -> f (GuardUnit f)
 
 -}
 
@@ -203,6 +218,9 @@ map_ f = concatMap_ (sng_ . f)
 guard :: QBool -> QListM QUnit
 guard = liftList . guardRep
 
+guard_ :: QBool -> QListM QUnit
+guard_ = liftList . guardRep
+
 table_ :: (QA a, QA b, QA (Rep a), QA (Rep b)) => String -> QListM (QTup a b)
 table_ tabName = wrap $ TableE tabName
 
@@ -334,6 +352,13 @@ instance Pretty (QList a) where
 
 instance (QA a, QA (Rep a)) => Pretty (QListM a) where
     pretty l = pretty $ lowerList l
+
+--------------------------------------------------------------------------------
+
+instance Guardable (NMP QA QList) where
+    type GuardBool (NMP QA QList) = QBool
+    type GuardUnit (NMP QA QList) = QUnit
+    aguard = guard_
 
 --------------------------------------------------------------------------------
 -- Comprehension examples
