@@ -116,7 +116,7 @@ instance QA QUnit where
     wrap = QUnit
     unwrap (QUnit e) = e
 
-instance (QA a, QA b) => QA (QTup a b) where
+instance QA (QTup a b) where
     type Rep (QTup a b) = QTup (Rep a) (Rep b)
     wrap = QTup
     unwrap (QTup e) = e
@@ -133,12 +133,12 @@ instance QA QBool where
     wrap = QBool
     unwrap (QBool e) = e
 
-instance QA a => QA (QList a) where
+instance QA (QList a) where
     type Rep (QList a) = QList (Rep a)
     wrap = QList
     unwrap (QList e)   = e
 
-instance (QA a, QA (Rep a)) => QA (NMP QA QList a) where
+instance QA a => QA (NMP QA QList a) where
     type (Rep (NMP QA QList a)) = QList (Rep a)
     wrap   = liftList . wrap
     unwrap = unwrap . lowerList
@@ -150,31 +150,31 @@ instance (QA a, QA (Rep a)) => QA (NMP QA QList a) where
 liftList :: QA a => QList a -> NMP QA QList a
 liftList = liftNMP
 
-lowerList :: (QA a, QA (Rep a)) => NMP QA QList a -> QList a
+lowerList :: QA a => NMP QA QList a -> QList a
 lowerList = lowerNMP emptyRep appendRep sngRep bindRep
 
 --------------------------------------------------------------------------------
 -- List combinators on actual list ASTs
 
-concatMapRep :: (QA a, QA b) => (a -> QList b) -> QList a -> QList b
+concatMapRep :: QA a => (a -> QList b) -> QList a -> QList b
 concatMapRep f as = wrap $ ConcatMapE (LamE $ toLam f) (unwrap as)
 
-bindRep :: (QA a, QA b) => QList a -> (a -> QList b) -> QList b
+bindRep :: QA a => QList a -> (a -> QList b) -> QList b
 bindRep = flip concatMapRep
 
-sngRep :: (QA a, QA (Rep a)) => a -> QList a
+sngRep :: QA a => a -> QList a
 sngRep x = wrap $ SngE (unwrap x)
 
 andRep :: QList QBool -> QBool
 andRep bs = wrap $ AndE (unwrap bs)
 
-appendRep :: QA a => QList a -> QList a -> QList a
+appendRep :: QList a -> QList a -> QList a
 appendRep as bs = wrap $ AppendE (unwrap as) (unwrap bs)
 
 toLam :: (QA a, QA b) => (a -> b) -> Exp (Rep a) -> Exp (Rep b)
 toLam f = unwrap . f . wrap
 
-emptyRep :: QA a => QList a
+emptyRep :: QList a
 emptyRep = wrap $ ListE []
 
 guardRep :: QBool -> QList QUnit
@@ -188,37 +188,37 @@ type QListM a = NMP QA QList a
 (>.) :: QA a => a -> a -> QBool
 (>.) a b = wrap $ GtE (unwrap a) (unwrap b)
 
-fst_ :: (QA a, QA b) => QTup a b -> a
+fst_ :: QA a => QTup a b -> a
 fst_ t = wrap $ FstE $ unwrap t
 
-snd_ :: (QA a, QA b) => QTup a b -> b
+snd_ :: QA b => QTup a b -> b
 snd_ t = wrap $ SndE $ unwrap t
 
-sng_ :: (QA a, QA (Rep a)) => a -> QListM a
+sng_ :: QA a => a -> QListM a
 sng_ = liftList . sngRep
 
-empty_ :: (QA a, QA (Rep a)) => QListM a
+empty_ :: QA a => QListM a
 empty_ = liftList emptyRep
 
 and_ :: QListM QBool -> QBool
 and_ = andRep . lowerList
 
-append_ :: (QA a, QA (Rep a)) => QListM a -> QListM a -> QListM a
+append_ :: QA a => QListM a -> QListM a -> QListM a
 append_ as1 as2 = liftList $ appendRep (lowerList as1) (lowerList as2)
 
-concatMap_ :: (QA a, QA (Rep a), QA b, QA (Rep b))
+concatMap_ :: (QA a, QA b)
            => (a -> QListM b) -> QListM a -> QListM b
 concatMap_ f as = liftList $ concatMapRep f' (lowerList as)
   where
     f' a = lowerList $ f a
 
-map_ :: (QA a, QA (Rep a), QA b, QA (Rep b)) => (a -> b) -> QListM a -> QListM b
+map_ :: (QA a, QA b) => (a -> b) -> QListM a -> QListM b
 map_ f = concatMap_ (sng_ . f)
 
 guard_ :: QBool -> QListM QUnit
 guard_ = liftList . guardRep
 
-table_ :: (QA a, QA b, QA (Rep a), QA (Rep b)) => String -> QListM (QTup a b)
+table_ :: String -> QListM (QTup a b)
 table_ tabName = wrap $ TableE tabName
 
 true_ :: QBool
@@ -269,7 +269,7 @@ d1 <+> d2 = d1 ++ " " ++ d2
 text :: String -> Doc
 text = id
 
-integer :: (Show a, Integral a) => a -> String
+integer :: Show a => a -> String
 integer = show
 
 parens :: Doc -> Doc
@@ -345,7 +345,7 @@ instance Pretty (QTup a b) where
 instance Pretty (QList a) where
     pretty (QList e) = evalState (pp e) 0
 
-instance (QA a, QA (Rep a)) => Pretty (QListM a) where
+instance (QA a) => Pretty (QListM a) where
     pretty l = pretty $ lowerList l
 
 --------------------------------------------------------------------------------
