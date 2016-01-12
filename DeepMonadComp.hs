@@ -355,9 +355,9 @@ instance (QA a, QA (Rep a)) => Pretty (QListM a) where
 --     type GuardUnit f
 --     aguard :: GuardBool f -> f (GuardUnit f)
 
-instance Guardable QListM where
-    type GuardBool QListM = QBool
-    type GuardUnit QListM = QUnit
+instance Guardable (NMP QA QList) where
+    type GuardBool (NMP QA QList) = QBool
+    type GuardUnit (NMP QA QList) = QUnit
     aguard = guard_
 
 --------------------------------------------------------------------------------
